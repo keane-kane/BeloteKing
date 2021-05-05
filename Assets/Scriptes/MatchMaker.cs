@@ -1,8 +1,8 @@
-using Mirror;
 using System.Security.Cryptography;
 using UnityEngine;
 using System.Text;
 using System;
+using Mirror;
 
 namespace Belote2d
 {
@@ -11,6 +11,10 @@ namespace Belote2d
     public class Match
     {
         public string matchID;
+
+        public bool publicMatch;
+        public bool inMatch;
+        public bool matchFull;
 
         public SyncListGameObject players = new SyncListGameObject();
 
@@ -54,14 +58,18 @@ namespace Belote2d
         {
             instance = this;
         }
-        public bool HostGameBool(string _matchID, GameObject _player, out int playerIndex)
+        public bool HostGameBool(string _matchID, GameObject _player,bool publicMatch, out int playerIndex)
         {
             playerIndex = -1;
             if (!matchIDs.Contains(_matchID))
             {
                 matchIDs.Add(_matchID);
-                matches.Add(new Match(_matchID, _player));
+                //matches.Add(new Match(_matchID, _player));
+                Match match = new Match(_matchID, _player);
+                match.publicMatch = publicMatch;
+                matches.Add(match);
                 Debug.Log($"Match generated");
+                _player.GetComponent<Players>().currentMatch = match;
                 playerIndex = 1;
                 return true;
 
@@ -81,9 +89,10 @@ namespace Belote2d
             {
                 for(int i = 0; i < matches.Count; i++)
                 {
-                    if(matches[i].matchID == _matchID)
+                    if (matches[i].matchID == _matchID)
                     {
                         matches[i].players.Add(_player);
+                        _player.GetComponent<Players>().currentMatch = matches[i];
                         playerIndex = matches[i].players.Count;
                         break;
                     }
@@ -99,6 +108,26 @@ namespace Belote2d
             }
         }
 
+        public bool SearchGameBool(GameObject player,out int playerIndex, out string matchID)
+        {
+            playerIndex = -1;
+            matchID = string.Empty;
+
+            for (int i = 0; i < matches.Count; i++)
+            {
+                if (matches[i].publicMatch && !matches[i].matchFull && !matches[i].inMatch)
+                {
+                    matchID = matches[i].matchID;
+                    if(JoinGameBool(matchID, player, out playerIndex))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+
         public void BeginGame(string _matchID)
         {
             GameObject newTurnManager = Instantiate(turnMangerPrefab);
@@ -111,7 +140,7 @@ namespace Belote2d
             {
                 if (matches[i].matchID == _matchID)
                 {
-                    foreach(var player in matches[i].players)
+                    foreach (var player in matches[i].players)
                     {
                         Players _player = player.GetComponent<Players>();
                         turnManger.AddPlayer(_player);
@@ -122,6 +151,28 @@ namespace Belote2d
             }
         }
 
+
+        public void DisconnectGame(Players player, string _matchID)
+        {
+            for(int i = 0; i < matches.Count; i++)
+            {
+                if(matches[i].matchID == _matchID)
+                {
+                    int playerIndex = matches[i].players.IndexOf(player.gameObject);
+                    matches[i].players.RemoveAt(playerIndex);
+                    Debug.Log($"Player disconnected from the match {_matchID} | {matches[i].players.Count} player rmaining");
+
+                }
+                if(matches[i].players.Count == 0)
+                {
+                    Debug.Log($"No more players in  the Match. | Terminating {_matchID} ");
+                    matches.RemoveAt(i);
+                    matchIDs.Remove(_matchID);
+
+                }
+                break;
+            }
+        }
 
         public static string GetRandomMathID()
         {

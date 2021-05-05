@@ -13,9 +13,12 @@ namespace Belote2d
 
         [Header("Host Join")]
         [SerializeField] InputField joinMatchInput;
-        [SerializeField] Button joinButton;
-        [SerializeField] Button hostButton;
+        [SerializeField] List<Selectable> lobbySelectalbes = new List<Selectable>();
+        /*[SerializeField] Button joinButton;
+        [SerializeField] Button hostButton;*/
         [SerializeField] Canvas lobbyCanvas;
+
+        [SerializeField] Canvas searchCanvas;
 
         [Header("Lobby")]
         [SerializeField] Transform UIPlayerParent;
@@ -23,21 +26,30 @@ namespace Belote2d
         [SerializeField] GameObject UIPlayerPrefab;
 
         [SerializeField] Text matchIDText;
+
         [SerializeField] GameObject beginGameButton;
 
 
+        GameObject playerLobbyUI;
+        bool searching = false;
 
         void Start()
         {
             instance = this;
         }
-        public void Host()
+        public void HostPrivate()
         {
             joinMatchInput.interactable = false;
-            joinButton.interactable = false;
-            hostButton.interactable = false;
+            lobbySelectalbes.ForEach(x => x.interactable = false);
 
-            Players.localPlayer.HostGame();
+            Players.localPlayer.HostGame(false);
+        } 
+        public void HostPublic()
+        {
+            joinMatchInput.interactable = false;
+            lobbySelectalbes.ForEach(x => x.interactable = false);
+
+            Players.localPlayer.HostGame(true);
         }
 
         public void HostSuccess(bool success, string _matchID)
@@ -45,23 +57,21 @@ namespace Belote2d
             if (success)
             {
                 lobbyCanvas.enabled = true;
-                SpawnPlayerUiPrefab(Players.localPlayer);
+                playerLobbyUI = SpawnPlayerUiPrefab(Players.localPlayer);
                 matchIDText.text = _matchID;
                 beginGameButton.SetActive(true);
             }
             else
             {
                 joinMatchInput.interactable = true;
-                joinButton.interactable = true;
-                hostButton.interactable = true;
+                lobbySelectalbes.ForEach(x => x.interactable = true);
             }
         }
 
         public void Join()
         {
             joinMatchInput.interactable = false;
-            joinButton.interactable = false;
-            hostButton.interactable = false;
+            lobbySelectalbes.ForEach(x => x.interactable = false);
             Players.localPlayer.JoinGame(joinMatchInput.text);
         }
 
@@ -70,30 +80,97 @@ namespace Belote2d
             if (success)
             {
                 lobbyCanvas.enabled = true;
+                beginGameButton.SetActive(false);
 
-                SpawnPlayerUiPrefab(Players.localPlayer);
+                playerLobbyUI = SpawnPlayerUiPrefab(Players.localPlayer);
                 matchIDText.text = _matchID;
             }
             else
             {
                 joinMatchInput.interactable = true;
-                joinButton.interactable = true;
-                hostButton.interactable = true;
+                lobbySelectalbes.ForEach(x => x.interactable = true);
             }
         }
 
 
-        public void SpawnPlayerUiPrefab(Players player)
+        public GameObject SpawnPlayerUiPrefab(Players player)
         {
             GameObject newUIPlayer = Instantiate(UIPlayerPrefab, UIPlayerParent);
             newUIPlayer.GetComponent<UIPlayer>().SetPlayer(player);
             newUIPlayer.transform.SetSiblingIndex(player.playerIndex - 1);
+
+            return newUIPlayer;
         }
 
 
         public void BeginGame()
         {
             Players.localPlayer.BeginGame();
+        }
+
+        public void SearchGame()
+        {
+            Debug.Log($"Searching match");
+            searchCanvas.enabled = true;
+            StartCoroutine(SearchingForGame());
+        }
+
+
+        IEnumerator SearchingForGame()
+        {
+            searching = true;
+           /* WaitForSeconds checkEveryFewSeconds = new WaitForSeconds(1);
+            while (searching)
+            {
+                yield return checkEveryFewSeconds;
+                if(searching)
+                Players.localPlayer.SearchGame();
+            }*/
+
+            float curentTime = -1;
+            while (searching)
+            {
+                if (curentTime > 0)
+                {
+                    curentTime -= Time.deltaTime;
+                }
+                else
+                {
+                    curentTime = -1;
+                    Players.localPlayer.SearchGame();
+
+                }
+            }
+            yield return null;
+        }
+
+        public void SearchSuccess(bool success, string _matchID)
+        {
+            if (success)
+            {
+                searchCanvas.enabled = false;
+                JoinSuccess(success, _matchID);
+                searching = false;
+
+            }
+        }
+
+
+        public void SearchCancel()
+        {
+            searching = false;
+            lobbySelectalbes.ForEach(x => x.interactable = true);
+        }
+
+
+        public void DisconncectLobby()
+        {
+            if (playerLobbyUI != null) Destroy(playerLobbyUI);
+            Players.localPlayer.DisconnectGame();
+
+            lobbyCanvas.enabled = false;
+            lobbySelectalbes.ForEach(x => x.enabled = true);
+            beginGameButton.SetActive(false);
         }
     }
 
